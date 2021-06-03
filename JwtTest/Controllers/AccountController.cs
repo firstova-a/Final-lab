@@ -291,7 +291,7 @@ namespace JwtTest.Controllers
         }
         
         
-        [Authorize(Roles = "User")]
+        [Authorize]
         public async Task<IActionResult> ListBlog()
         {
             UserModel usr = CurrentUser.ToUserModel();
@@ -343,7 +343,7 @@ namespace JwtTest.Controllers
         }
         
         [HttpPost]
-        [Authorize(Roles = "User")]
+        
         public async Task<IActionResult> CreateBlog(BlogModel model)
         {
             if (!ModelState.IsValid)
