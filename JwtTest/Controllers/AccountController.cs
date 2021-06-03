@@ -18,6 +18,10 @@ using Microsoft.AspNetCore.Http;
 using System.IO;
 using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.EntityFrameworkCore;
+using Newtonsoft.Json;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Authentication;
 
 namespace JwtTest.Controllers
 {
@@ -417,6 +421,165 @@ namespace JwtTest.Controllers
             byte[] imgBytes = await System.IO.File.ReadAllBytesAsync(filePath);
             return File(imgBytes, contentType);
         }
+
+        [HttpPost]
+        public async Task<String> Login2(LoginModel model)
+        {
+            MainModel obj = new MainModel();
+            if (!ModelState.IsValid) {
+                obj.ErrorMessage = "НЕПРАВИЛЬНЫЕ ДАННЫЕ";
+                var json2 = JsonConvert.SerializeObject(obj, Formatting.Indented, new JsonSerializerSettings()
+                {
+                    ReferenceLoopHandling = ReferenceLoopHandling.Ignore
+                });
+                return json2;
+            }
+            Person person = context.People.SingleOrDefault(usr => usr.Login == model.Username);
+            if (person == null || !Argon2.Verify(person.PasswordHash, model.Password))
+            {
+                obj.ErrorMessage = "Неверное имя пользователя или пароль";
+                ModelState.AddModelError("Username", "Неверное имя пользователя или пароль");
+                var json3 = JsonConvert.SerializeObject(obj, Formatting.Indented, new JsonSerializerSettings()
+                {
+                    ReferenceLoopHandling = ReferenceLoopHandling.Ignore
+                });
+                return json3;
+            }
+            await Authenticate(person.Login, person.Role);
+            IQueryable<Blog> blogs = from blog in context.Blogs
+                                     select blog;
+            obj.Blogs = await blogs.ToListAsync();
+            obj.User = CurrentUser;
+            var json = JsonConvert.SerializeObject(obj, Formatting.Indented, new JsonSerializerSettings()
+            {
+                ReferenceLoopHandling = ReferenceLoopHandling.Ignore
+            });
+            return json;
+        }
+       
+
+        [HttpPost]
+        [Authorize]
+        public async Task<string> RegisterBlog2(string bird,
+                                               string birdInLatin,
+                                               int count,
+                                              string time,
+                                               string weather,
+                                               string place,
+                                               string comment)
+        {
+            UserModel usr = CurrentUser.ToUserModel();
+            Person usrcont = context.People.FirstOrDefault(p => p.Login == usr.Username);
+            DateTime ndat = DateTime.Parse(time);
+
+
+            Blog blog = new Blog()
+            {
+                Bird = bird,
+                BirdInLatin = birdInLatin,
+                Count = count,
+                Weather = weather,
+                Time = ndat,
+                Place = place,
+                Comment = comment,
+                Author = usrcont
+                
+            };
+
+            await context.Blogs.AddAsync(blog);
+            await context.SaveChangesAsync();
+           
+            MainModel obj = new MainModel();
+            IQueryable<Blog> blogs = from blogall in context.Blogs
+                                     select blogall;
+            obj.Blogs = await blogs.ToListAsync();
+            obj.User = CurrentUser;
+            var json6 = JsonConvert.SerializeObject(obj, Formatting.Indented, new JsonSerializerSettings()
+            {
+                ReferenceLoopHandling = ReferenceLoopHandling.Ignore
+            });
+            return json6;
+            
+        }
+
+
+        [Authorize]
         
+        public async Task<string> DeleteBlog2(int id)
+        {
+            Blog blog = context.Blogs.Find(id);
+            MainModel obj = new MainModel();
+            Person qwe = blog.Author;
+            Person asd = CurrentUser;
+            if (blog != null && CurrentUser.Role == UserRole.User && blog.Author == CurrentUser)
+            {
+                context.Blogs.Remove(blog);
+                await context.SaveChangesAsync();
+            
+
+            IQueryable<Blog> blogs = from blogall in context.Blogs
+                                     select blogall;
+            obj.Blogs = await blogs.ToListAsync();
+            obj.ErrorMessage = null;
+                obj.User = CurrentUser;
+            }
+            else if (blog != null && CurrentUser.Role == UserRole.Admin)
+            {
+                context.Blogs.Remove(blog);
+                await context.SaveChangesAsync();
+                IQueryable<Blog> blogs = from blogall in context.Blogs
+                                         select blogall;
+                obj.Blogs = await blogs.ToListAsync();
+                obj.ErrorMessage = null;
+                obj.User = CurrentUser;
+            }
+            else
+            {
+                obj.ErrorMessage = "Нельзя удалить";
+            }
+            var json7 = JsonConvert.SerializeObject(obj, Formatting.Indented, new JsonSerializerSettings()
+
+            {
+                ReferenceLoopHandling = ReferenceLoopHandling.Ignore
+            });
+            return json7;
+        }
+
+
+        [Authorize]
+        [HttpGet]
+        public async Task<String> Logoff2()
+        {
+            
+                await HttpContext.SignOutAsync();
+                var obj = new MainModel()
+                {
+                    User = CurrentUser,
+                    ErrorMessage = null
+                };
+                var json = JsonConvert.SerializeObject(obj, Formatting.Indented,
+                    new JsonSerializerSettings()
+                    {
+                        ReferenceLoopHandling = ReferenceLoopHandling.Ignore
+                    });
+                return json;
+                    }
+
+      
+        [Authorize]
+        public async Task<string> Refresh()
+        {
+            MainModel obj = new MainModel();
+            IQueryable<Blog> blogs = from blogall in context.Blogs
+                                     select blogall;
+            obj.Blogs = await blogs.ToListAsync();
+            var json6 = JsonConvert.SerializeObject(obj, Formatting.Indented, new JsonSerializerSettings()
+            {
+                ReferenceLoopHandling = ReferenceLoopHandling.Ignore
+            });
+            return json6;
+        }
+
+
     }
 }
